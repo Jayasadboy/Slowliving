@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚡ Quick Input Hub — Slow Living OS</title>
+
+<!--
+  ============================================================
+  SLOW LIVING OS — QUICK INPUT HUB
+  ============================================================
+  File ini adalah versi standalone yang bisa dibuka langsung
+  di browser sebagai file lokal (file:///...) atau dihost di
+  server manapun.
+
+  SATU-SATUNYA YANG PERLU DIUBAH:
+  Ganti nilai PROXY_URL di bawah ini dengan URL proxy kamu
+  setelah selesai deploy Cloudflare Worker atau Node.js server.
+
+  Contoh setelah deploy Cloudflare:
+    const PROXY_URL = 'https://slow-living-proxy.namakamu.workers.dev';
+
+  Contoh setelah deploy Node.js lokal untuk testing:
+    const PROXY_URL = 'http://localhost:3000';
+  ============================================================
+-->
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #ffffff;
+    --bg2:      #f7f7f5;
+    --bg3:      #f0efeb;
+    --text:     #1a1a1a;
+    --text2:    #5c5c5c;
+    --text3:    #9b9b9b;
+    --border:   rgba(0,0,0,0.12);
+    --border2:  rgba(0,0,0,0.22);
+    --radius:   8px;
+    --radius-l: 12px;
+    --green:    #1a7a4a;
+    --red:      #c0392b;
+    --amber:    #d4820a;
+    --blue:     #1a5fa8;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:    #1c1c1e;
+      --bg2:   #2c2c2e;
+      --bg3:   #3a3a3c;
+      --text:  #f5f5f0;
+      --text2: #aeaeb2;
+      --text3: #636366;
+      --border:  rgba(255,255,255,0.12);
+      --border2: rgba(255,255,255,0.22);
+    }
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 1rem;
+    min-height: 100vh;
+  }
+
+  /* ── Navigation tabs ─────────────────────────────────── */
+  .nav {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 0.5px solid var(--border);
+  }
+
+  .nav-btn {
+    padding: 7px 14px;
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--text2);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+
+  .nav-btn:hover { background: var(--bg2); color: var(--text); }
+
+  .nav-btn.active {
+    background: var(--text);
+    color: var(--bg);
+    border-color: var(--text);
+  }
+
+  /* ── Panels ──────────────────────────────────────────── */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .panel-header { margin-bottom: 1.25rem; }
+  .panel-title { font-size: 17px; font-weight: 500; margin-bottom: 3px; }
+  .panel-desc { font-size: 13px; color: var(--text2); }
+
+  /* ── Form grid ───────────────────────────────────────── */
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .form-group.full { grid-column: 1 / -1; }
+
+  label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  input, select, textarea {
+    width: 100%;
+    padding: 8px 11px;
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+    transition: border-color 0.12s;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--blue);
+  }
+
+  input[readonly] {
+    background: var(--bg2);
+    color: var(--text2);
+    cursor: default;
+  }
+
+  textarea { resize: vertical; min-height: 72px; }
+
+  /* ── Segmented buttons ───────────────────────────────── */
+  .seg { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+
+  .seg-btn {
+    padding: 6px 12px;
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--text2);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.1s;
+    white-space: nowrap;
+  }
+
+  .seg-btn:hover { background: var(--bg2); color: var(--text); }
+  .seg-btn.sel   { background: var(--text); color: var(--bg); border-color: var(--text); }
+
+  .seg-btn.win.sel  { background: var(--green); border-color: var(--green); color: #fff; }
+  .seg-btn.loss.sel { background: var(--red);   border-color: var(--red);   color: #fff; }
+  .seg-btn.warn.sel { background: var(--amber); border-color: var(--amber); color: #fff; }
+
+  /* ── Submit button ───────────────────────────────────── */
+  .btn-submit {
+    width: 100%;
+    margin-top: 16px;
+    padding: 11px;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--text);
+    color: var(--bg);
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+
+  .btn-submit:hover   { opacity: 0.85; }
+  .btn-submit:active  { transform: scale(0.99); }
+  .btn-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── Divider & section label ─────────────────────────── */
+  .divider {
+    grid-column: 1 / -1;
+    border: none;
+    border-top: 0.5px solid var(--border);
+    margin: 4px 0;
+  }
+
+  .section-label {
+    grid-column: 1 / -1;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding-top: 4px;
+  }
+
+  /* ── Toast notification ──────────────────────────────── */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--text);
+    color: var(--bg);
+    padding: 10px 20px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    z-index: 999;
+    white-space: nowrap;
+  }
+
+  .toast.show { opacity: 1; }
+  .toast.err  { background: var(--red); color: #fff; }
+
+  /* ── RRR badge ───────────────────────────────────────── */
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    background: var(--bg2);
+    border: 0.5px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    color: var(--text2);
+    margin-left: 4px;
+  }
+
+  /* ── Slider ──────────────────────────────────────────── */
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .slider-row input[type=range] { flex: 1; }
+  .slider-val { font-size: 13px; font-weight: 500; min-width: 20px; color: var(--text2); }
+
+  @media (max-width: 480px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .form-group.full { grid-column: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <button class="nav-btn active" onclick="switchPanel('trading',this)">📈 Trading</button>
+  <button class="nav-btn" onclick="switchPanel('keuangan',this)">💰 Keuangan</button>
+  <button class="nav-btn" onclick="switchPanel('lahan',this)">🌱 Lahan</button>
+  <button class="nav-btn" onclick="switchPanel('energi',this)">⚡ Energi</button>
+  <button class="nav-btn" onclick="switchPanel('harian',this)">🧘 Harian</button>
+  <button class="nav-btn" onclick="switchPanel('inventaris',this)">🛒 Inventaris</button>
+</div>
+
+<!-- ═══ PANEL: TRADING ═══════════════════════════════════════════════════════ -->
+<div id="panel-trading" class="panel active">
+  <div class="panel-header">
+    <div class="panel-title">Quick Trade Entry</div>
+    <div class="panel-desc">Log trade setelah close — target &lt;60 detik</div>
+  </div>
+  <div class="form-grid">
+
+    <div class="form-group full">
+      <label>Pair / Instrumen</label>
+      <div class="seg">
+        <button class="seg-btn" onclick="pick('t_pair','EURUSD',this)">EURUSD</button>
+        <button class="seg-btn" onclick="pick('t_pair','GBPUSD',this)">GBPUSD</button>
+        <button class="seg-btn" onclick="pick('t_pair','XAUUSD',this)">XAUUSD</button>
+        <button class="seg-btn" onclick="pick('t_pair','USDJPY',this)">USDJPY</button>
+        <button class="seg-btn" onclick="pick('t_pair','GBPJPY',this)">GBPJPY</button>
+        <button class="seg-btn" onclick="pick('t_pair','NAS100',this)">NAS100</button>
+        <input id="t_pair_custom" placeholder="Lainnya…" style="width:100px;padding:6px 10px;font-size:13px"
+               oninput="S.t.pair=this.value">
+      </div>
+    </div>
+
+    <div class="form-group full">
+      <label>Sesi</label>
+      <div class="seg">
+        <button class="seg-btn" onclick="pick('t_sesi','London',this)">London</button>
+        <button class="seg-btn" onclick="pick('t_sesi','New York',this)">New York</button>
+        <button class="seg-btn" onclick="pick('t_sesi','Overlap',this)">Overlap</button>
+        <button class="seg-btn" onclick="pick('t_sesi','Asian',this)">Asian</button>
+      </div>
+    </div>
+
+    <div class="form-group full">
+      <label>Arah</label>
+      <div class="seg">
+        <button class="seg-btn win" onclick="pick('t_arah','Buy',this)">▲ Buy</button>
+        <button class="seg-btn loss" onclick="pick('t_arah','Sell',this)">▼ Sell</button>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="form-group">
+      <label>Entry Price</label>
+      <input type="number" step="0.00001" id="t_entry" placeholder="1.08450" oninput="calcRRR()">
+    </div>
+    <div class="form-group">
+      <label>Stop Loss</label>
+      <input type="number" step="0.00001" id="t_sl" placeholder="1.08200" oninput="calcRRR()">
+    </div>
+    <div class="form-group">
+      <label>Take Profit</label>
+      <input type="number" step="0.00001" id="t_tp" placeholder="1.09000" oninput="calcRRR()">
+    </div>
+    <div class="form-group">
+      <label>Lot Size</label>
+      <input type="number" step="0.01" id="t_lot" placeholder="0.50">
+    </div>
+    <div class="form-group">
+      <label>Risk (USD)</label>
+      <input type="number" step="1" id="t_risk" placeholder="100">
+    </div>
+    <div class="form-group">
+      <label>RRR Planned <span class="badge" id="rrr_badge">—</span></label>
+      <input type="number" step="0.1" id="t_rrr" placeholder="2.0">
+    </div>
+
+    <hr class="divider">
+
+    <div class="form-group full">
+      <label>Hasil</label>
+      <div class="seg">
+        <button class="seg-btn win"  onclick="pick('t_hasil','Win',this)">✓ Win</button>
+        <button class="seg-btn loss" onclick="pick('t_hasil','Loss',this)">✗ Loss</button>
+        <button class="seg-btn warn" onclick="pick('t_hasil','BE',this)">~ Break Even</button>
+        <button class="seg-btn"     onclick="pick('t_hasil','Running',this)">⟳ Running</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>P&amp;L (USD)</label>
+      <input type="number" step="0.01" id="t_pnl" placeholder="+250">
+    </div>
+    <div class="form-group">
+      <label>Emosi Sebelum</label>
+      <select id="t_emosi">
+        <option value="">— Pilih —</option>
+        <option>Tenang</option>
+        <option>Sedikit Anxious</option>
+        <option>FOMO</option>
+        <option>Overconfident</option>
+        <option>Ragu</option>
+      </select>
+    </div>
+
+    <div class="form-group full">
+      <label>Setup / Alasan Entry</label>
+      <textarea id="t_setup" placeholder="BOS di H1, POI valid, entry konfirmasi M15, liquidity sweep sebelumnya..."></textarea>
+    </div>
+    <div class="form-group full">
+      <label>Lesson Learned (opsional)</label>
+      <textarea id="t_lesson" placeholder="Yang bisa diperbaiki dari trade ini..." style="min-height:54px"></textarea>
+    </div>
+
+  </div>
+  <button class="btn-submit" onclick="submitTrading()">Simpan ke Trading Journal →</button>
+</div>
+
+<!-- ═══ PANEL: KEUANGAN ══════════════════════════════════════════════════════ -->
+<div id="panel-keuangan" class="panel">
+  <div class="panel-header">
+    <div class="panel-title">Input Bulanan Keuangan</div>
+    <div class="panel-desc">Isi setiap akhir bulan setelah withdrawal dari prop firm</div>
+  </div>
+  <div class="form-grid">
+
+    <div class="form-group full">
+      <label>Nama Bulan</label>
+      <input type="text" id="k_bulan" placeholder="April 2026">
+    </div>
+
+    <div class="form-group">
+      <label>Profit Gross (USD)</label>
+      <input type="number" step="0.01" id="k_profit" placeholder="1200" oninput="calcAlokasi()">
+    </div>
+    <div class="form-group">
+      <label>Kurs IDR saat ini</label>
+      <input type="number" id="k_kurs" value="16000" oninput="calcAlokasi()">
+    </div>
+
+    <hr class="divider">
+    <div class="section-label">Preview Alokasi Otomatis</div>
+
+    <div class="form-group">
+      <label>Ops 40% (IDR)</label>
+      <input type="text" id="k_ops" readonly placeholder="Rp 0">
+    </div>
+    <div class="form-group">
+      <label>Dana Darurat 30%</label>
+      <input type="text" id="k_dd" readonly placeholder="Rp 0">
+    </div>
+    <div class="form-group">
+      <label>Infrastruktur 20%</label>
+      <input type="text" id="k_infra" readonly placeholder="Rp 0">
+    </div>
+    <div class="form-group">
+      <label>Tools & Skill 10%</label>
+      <input type="text" id="k_tools" readonly placeholder="Rp 0">
+    </div>
+
+    <hr class="divider">
+
+    <div class="form-group">
+      <label>Total Pengeluaran Aktual (IDR)</label>
+      <input type="number" id="k_spend" placeholder="3800000">
+    </div>
+    <div class="form-group">
+      <label>Status Bulan</label>
+      <select id="k_status">
+        <option value="">— Pilih —</option>
+        <option>Di Bawah Survival</option>
+        <option>Survival</option>
+        <option>Comfort</option>
+        <option>Growth</option>
+        <option>Exceptional</option>
+      </select>
+    </div>
+
+    <div class="form-group full">
+      <label>Catatan</label>
+      <textarea id="k_catatan" placeholder="Bulan ini ada pengeluaran ekstra untuk..." style="min-height:54px"></textarea>
+    </div>
+
+  </div>
+  <button class="btn-submit" onclick="submitKeuangan()">Simpan ke Keuangan →</button>
+</div>
+
+<!-- ═══ PANEL: LAHAN ══════════════════════════════════════════════════════════ -->
+<div id="panel-lahan" class="panel">
+  <div class="panel-header">
+    <div class="panel-title">Log Tanaman</div>
+    <div class="panel-desc">Catat saat menanam baru atau update status tanaman yang ada</div>
+  </div>
+  <div class="form-grid">
+
+    <div class="form-group full">
+      <label>Nama Tanaman</label>
+      <input type="text" id="l_nama" placeholder="Cabai rawit, Bayam hijau, Pisang kepok...">
+    </div>
+
+    <div class="form-group">
+      <label>Jenis</label>
+      <select id="l_jenis">
+        <option value="">— Pilih —</option>
+        <option>Sayuran</option>
+        <option>Buah</option>
+        <option>Umbi</option>
+        <option>Rempah</option>
+        <option>Pohon Produktif</option>
+        <option>Pakan Ternak</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Zona Lahan</label>
+      <select id="l_zona">
+        <option value="">— Pilih —</option>
+        <option>Zona A - Dekat Rumah</option>
+        <option>Zona B - Tengah</option>
+        <option>Zona C - Jauh</option>
+        <option>Pot/Polybag</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Metode Tanam</label>
+      <select id="l_metode">
+        <option value="">— Pilih —</option>
+        <option>Langsung Tanah</option>
+        <option>Raised Bed</option>
+        <option>Polybag</option>
+        <option>Hidroponik</option>
+      </select>
+    </div>
+
+    <div class="form-group full">
+      <label>Status Saat Ini</label>
+      <div class="seg">
+        <button class="seg-btn" onclick="pick('l_status','Benih/Semai',this)">🌰 Benih</button>
+        <button class="seg-btn win" onclick="pick('l_status','Tumbuh',this)">🌿 Tumbuh</button>
+        <button class="seg-btn" onclick="pick('l_status','Siap Panen',this)" style="border-color:#1a5fa8;color:#1a5fa8">🌾 Siap Panen</button>
+        <button class="seg-btn" onclick="pick('l_status','Sudah Dipanen',this)">✓ Dipanen</button>
+        <button class="seg-btn warn" onclick="pick('l_status','Perlu Perhatian',this)">⚠ Perhatian</button>
+        <button class="seg-btn loss" onclick="pick('l_status','Gagal/Mati',this)">✗ Gagal</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Luas / Jumlah (m² atau unit)</label>
+      <input type="number" step="0.5" id="l_luas" placeholder="4">
+    </div>
+    <div class="form-group">
+      <label>Tanggal Tanam</label>
+      <input type="date" id="l_tanam">
+    </div>
+    <div class="form-group">
+      <label>Estimasi Panen</label>
+      <input type="date" id="l_panen">
+    </div>
+    <div class="form-group">
+      <label>Hasil Panen (kg)</label>
+      <input type="number" step="0.1" id="l_hasil" placeholder="2.5">
+    </div>
+    <div class="form-group">
+      <label>Estimasi Harga/kg (IDR)</label>
+      <input type="number" id="l_harga" placeholder="15000">
+    </div>
+
+    <div class="form-group full">
+      <label>Catatan Masalah / Perawatan</label>
+      <textarea id="l_catatan" placeholder="Gejala kuning daun, sudah diberi pupuk NPK 2 sendok/liter..." style="min-height:54px"></textarea>
+    </div>
+
+  </div>
+  <button class="btn-submit" onclick="submitLahan()">Simpan ke Lahan & Pertanian →</button>
+</div>
+
+<!-- ═══ PANEL: ENERGI ══════════════════════════════════════════════════════════ -->
+<div id="panel-energi" class="panel">
+  <div class="panel-header">
+    <div class="panel-title">Update Infrastruktur</div>
+    <div class="panel-desc">Catat tagihan bulanan, maintenance, atau item infrastruktur baru</div>
+  </div>
+  <div class="form-grid">
+
+    <div class="form-group full">
+      <label>Item — Pilih Cepat</label>
+      <div class="seg" style="margin-bottom:8px">
+        <button class="seg-btn" onclick="setEItem('Listrik PLN','Listrik PLN')">⚡ PLN</button>
+        <button class="seg-btn" onclick="setEItem('Internet','Internet')">📶 Internet</button>
+        <button class="seg-btn" onclick="setEItem('Sumur/Pompa Air','Air & Sumur')">💧 Air</button>
+        <button class="seg-btn" onclick="setEItem('Gas LPG','Gas')">🔥 Gas LPG</button>
+        <button class="seg-btn" onclick="setEItem('Kendaraan Motor','Kendaraan')">🏍 Motor</button>
+        <button class="seg-btn" onclick="setEItem('Kendaraan Mobil','Kendaraan')">🚗 Mobil</button>
+      </div>
+      <input type="text" id="e_nama" placeholder="atau ketik nama item baru…">
+    </div>
+
+    <div class="form-group">
+      <label>Kategori</label>
+      <select id="e_kat">
+        <option value="">— Pilih —</option>
+        <option>Listrik PLN</option>
+        <option>Solar/PLTS</option>
+        <option>Air & Sumur</option>
+        <option>Internet</option>
+        <option>Gas</option>
+        <option>Bangunan</option>
+        <option>Kendaraan</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Status</label>
+      <select id="e_status">
+        <option value="">— Pilih —</option>
+        <option>Aktif & Normal</option>
+        <option>Perlu Perawatan</option>
+        <option>Bermasalah</option>
+        <option>Direncanakan</option>
+        <option>Selesai Dibangun</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Biaya Bulan Ini (IDR)</label>
+      <input type="number" id="e_biaya" placeholder="180000">
+    </div>
+    <div class="form-group">
+      <label>Rata-rata Bulanan (IDR)</label>
+      <input type="number" id="e_avg" placeholder="175000">
+    </div>
+    <div class="form-group">
+      <label>Investasi Awal (IDR)</label>
+      <input type="number" id="e_invest" placeholder="0">
+    </div>
+    <div class="form-group">
+      <label>Maintenance Berikutnya</label>
+      <input type="date" id="e_maint">
+    </div>
+
+    <div class="form-group full">
+      <label>Catatan / Tindakan</label>
+      <textarea id="e_catatan" placeholder="Tagihan naik Rp20k dari bulan lalu, cek pompa air setelah hujan deras..." style="min-height:54px"></textarea>
+    </div>
+
+  </div>
+  <button class="btn-submit" onclick="submitEnergi()">Simpan ke Energi & Infrastruktur →</button>
+</div>
+
+<!-- ═══ PANEL: HARIAN ══════════════════════════════════════════════════════════ -->
+<div id="panel-harian" class="panel">
+  <div class="panel-header">
+    <div class="panel-title">Daily Check-in</div>
+    <div class="panel-desc">5 menit setiap pagi — konsistensi adalah investasi terpenting</div>
+  </div>
+  <div class="form-grid">
+
+    <div class="form-group full">
+      <label>Tanggal</label>
+      <input type="date" id="h_tanggal">
+    </div>
+
+    <div class="form-group full">
+      <label>Mood Pagi</label>
+      <div class="seg">
+        <button class="seg-btn" onclick="pick('h_mood','🌟 Luar Biasa',this)">🌟 Luar Biasa</button>
+        <button class="seg-btn" onclick="pick('h_mood','😊 Baik',this)">😊 Baik</button>
+        <button class="seg-btn" onclick="pick('h_mood','😐 Biasa',this)">😐 Biasa</button>
+        <button class="seg-btn" onclick="pick('h_mood','😔 Kurang',this)">😔 Kurang</button>
+        <button class="seg-btn" onclick="pick('h_mood','😞 Buruk',this)">😞 Buruk</button>
+      </div>
+    </div>
+
+    <div class="form-group full">
+      <label>Kualitas Tidur</label>
+      <div class="seg">
+        <button class="seg-btn win" onclick="pick('h_tidur','😴 Sangat Nyenyak',this)">Sangat Nyenyak</button>
+        <button class="seg-btn" onclick="pick('h_tidur','🙂 Cukup',this)">Cukup</button>
+        <button class="seg-btn warn" onclick="pick('h_tidur','😑 Kurang',this)">Kurang</button>
+        <button class="seg-btn loss" onclick="pick('h_tidur','😩 Buruk',this)">Buruk</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Jam Tidur</label>
+      <input type="number" step="0.5" id="h_jam" placeholder="7.5">
+    </div>
+    <div class="form-group">
+      <label>Pengeluaran Hari Ini (IDR)</label>
+      <input type="number" id="h_spend" placeholder="45000">
+    </div>
+
+    <div class="form-group">
+      <label>Energi Level — <span id="h_e_val" style="font-weight:500">7</span>/10</label>
+      <div class="slider-row">
+        <input type="range" min="1" max="10" value="7" id="h_energi"
+               oninput="document.getElementById('h_e_val').textContent=this.value">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Fokus Level — <span id="h_f_val" style="font-weight:500">7</span>/10</label>
+      <div class="slider-row">
+        <input type="range" min="1" max="10" value="7" id="h_fokus"
+               oninput="document.getElementById('h_f_val').textContent=this.value">
+      </div>
+    </div>
+
+    <hr class="divider">
+    <div class="section-label">Aktivitas Hari Ini</div>
+
+    <div class="form-group full">
+      <div class="seg">
+        <button class="seg-btn" id="chk_ola" onclick="toggleChk('ola',this)">Olahraga</button>
+        <button class="seg-btn" id="chk_med" onclick="toggleChk('med',this)">Meditasi</button>
+        <button class="seg-btn" id="chk_keb" onclick="toggleChk('keb',this)">Berkebun</button>
+        <button class="seg-btn" id="chk_trd" onclick="toggleChk('trd',this)">Trading</button>
+        <button class="seg-btn" id="chk_lhn" onclick="toggleChk('lhn',this)">Makan dari Lahan</button>
+      </div>
+    </div>
+
+    <div class="form-group full">
+      <label>Syukur Hari Ini</label>
+      <textarea id="h_syukur" placeholder="3 hal yang kamu syukuri hari ini..."></textarea>
+    </div>
+    <div class="form-group full">
+      <label>Satu Hal Yang Ingin Diperbaiki Besok</label>
+      <input type="text" id="h_perbaiki" placeholder="Bangun lebih pagi, kurang scrolling HP sebelum tidur...">
+    </div>
+
+  </div>
+  <button class="btn-submit" onclick="submitHarian()">Simpan ke Kesehatan & Ritme →</button>
+</div>
+
+<!-- ═══ PANEL: INVENTARIS ══════════════════════════════════════════════════════ -->
+<div id="panel-inventaris" class="panel">
+  <div class="panel-header">
+    <div class="panel-title">Update Stok Inventaris</div>
+    <div class="panel-desc">Catat saat stok berkurang, habis, atau setelah belanja</div>
+  </div>
+  <div class="form-grid">
+
+    <div class="form-group full">
+      <label>Nama Item</label>
+      <input type="text" id="i_nama" placeholder="Beras, cabai, pupuk NPK, sabun cuci...">
+    </div>
+
+    <div class="form-group">
+      <label>Kategori</label>
+      <select id="i_kat">
+        <option value="">— Pilih —</option>
+        <option>Sembako</option>
+        <option>Bumbu Dapur</option>
+        <option>Kebersihan</option>
+        <option>Kesehatan</option>
+        <option>Alat Pertanian</option>
+        <option>Tools & Elektronik</option>
+        <option>Bahan Bangunan</option>
+        <option>Pakan Ternak</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Status Stok</label>
+      <div class="seg">
+        <button class="seg-btn win"  onclick="pick('i_stok','Aman',this)">✓ Aman</button>
+        <button class="seg-btn warn" onclick="pick('i_stok','Perlu Dibeli',this)">! Perlu Beli</button>
+        <button class="seg-btn loss" onclick="pick('i_stok','Habis/Darurat',this)">✗ Habis!</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Stok Saat Ini</label>
+      <input type="number" step="0.1" id="i_stok_qty" placeholder="5">
+    </div>
+
+    <div class="form-group">
+      <label>Satuan</label>
+      <div class="seg" style="margin-bottom:6px">
+        <button class="seg-btn" onclick="pick('i_satuan','kg',this)">kg</button>
+        <button class="seg-btn" onclick="pick('i_satuan','liter',this)">liter</button>
+        <button class="seg-btn" onclick="pick('i_satuan','pcs',this)">pcs</button>
+        <button class="seg-btn" onclick="pick('i_satuan','bungkus',this)">bungkus</button>
+      </div>
+      <input id="i_satuan_custom" placeholder="satuan lain…" style="font-size:13px;padding:6px 10px"
+             oninput="S.i.satuan=this.value">
+    </div>
+
+    <div class="form-group">
+      <label>Stok Minimum</label>
+      <input type="number" step="0.1" id="i_min" placeholder="2">
+    </div>
+    <div class="form-group">
+      <label>Harga Satuan (IDR)</label>
+      <input type="number" id="i_harga" placeholder="12000">
+    </div>
+
+    <div class="form-group">
+      <label>Dari Lahan Sendiri?</label>
+      <div class="seg">
+        <button class="seg-btn win" id="chk_drl_y" onclick="S.i.darila=true;this.classList.add('sel');document.getElementById('chk_drl_n').classList.remove('sel')">Ya</button>
+        <button class="seg-btn sel" id="chk_drl_n" onclick="S.i.darila=false;this.classList.add('sel');document.getElementById('chk_drl_y').classList.remove('sel')">Tidak</button>
+      </div>
+    </div>
+
+    <div class="form-group full">
+      <label>Catatan</label>
+      <textarea id="i_catatan" placeholder="Beli di Pasar Kebumen, stok cukup untuk 2 minggu..." style="min-height:54px"></textarea>
+    </div>
+
+  </div>
+  <button class="btn-submit" onclick="submitInventaris()">Simpan ke Inventaris →</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+//  KONFIGURASI — SATU-SATUNYA YANG PERLU DIUBAH
+// ============================================================
+// Setelah deploy proxy (Cloudflare Workers atau Node.js),
+// ganti URL di bawah ini dengan URL proxy kamu.
+//
+// Contoh Cloudflare: 'https://slow-living-proxy.namakamu.workers.dev'
+// Contoh Node lokal: 'http://localhost:3000'
+const PROXY_URL = 'YOUR_PROXY_URL_HERE';
+
+// ── Database IDs Notion ──────────────────────────────────────
+// ID-ID ini sudah terpasang dan tidak perlu diubah kecuali ada
+// perubahan database di Notion.
+const DB = {
+  trading:  '4f476529-bcbc-4ae4-9c1b-9b88b01344ea',
+  keuangan: 'fdaca666-c06e-4f36-bccb-24e97d56c84c',
+  lahan:    'd36dbfbf-9bcf-4c6c-acfa-2436be77ac77',
+  energi:   'ea8d0daa-2149-4074-b878-f9956814df10',
+  harian:   '92827689-1915-4b84-bd54-30c6523210d4',
+  inv:      '75a2b041-1c8a-46d2-bce1-67429716e18d',
+};
+
+// ── State reaktif untuk seg buttons ─────────────────────────
+// Object S menyimpan semua nilai yang dipilih via tombol segmented.
+// Nilai dari input biasa (text, number, date) dibaca langsung dari
+// DOM saat submit — lebih sederhana dan selalu fresh.
+const S = {
+  t: { pair:'', sesi:'', arah:'', hasil:'' },
+  l: { status:'' },
+  h: { mood:'', tidur:'', ola:false, med:false, keb:false, trd:false, lhn:false },
+  i: { stok:'', satuan:'', darila:false },
+};
+
+// ── Inisialisasi tanggal hari ini ────────────────────────────
+document.getElementById('h_tanggal').value = new Date().toISOString().slice(0,10);
+
+// ── Utility: switch panel ────────────────────────────────────
+function switchPanel(id, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── Utility: segmented button selection ─────────────────────
+// Menghapus .sel dari semua sibling, lalu menambahkan ke tombol
+// yang diklik. Juga mengupdate state S sesuai key yang diberikan.
+function pick(key, val, el) {
+  el.closest('.seg').querySelectorAll('.seg-btn').forEach(b => b.classList.remove('sel'));
+  el.classList.add('sel');
+  const map = {
+    t_pair: () => S.t.pair = val,
+    t_sesi: () => S.t.sesi = val,
+    t_arah: () => S.t.arah = val,
+    t_hasil: () => S.t.hasil = val,
+    l_status: () => S.l.status = val,
+    h_mood: () => S.h.mood = val,
+    h_tidur: () => S.h.tidur = val,
+    i_stok: () => S.i.stok = val,
+    i_satuan: () => S.i.satuan = val,
+  };
+  if (map[key]) map[key]();
+}
+
+// ── Utility: toggle checkbox buttons (aktivitas harian) ─────
+function toggleChk(key, el) {
+  S.h[key] = !S.h[key];
+  el.classList.toggle('sel', S.h[key]);
+}
+
+// ── Utility: set energi item dengan shortcut ─────────────────
+function setEItem(nama, kat) {
+  document.getElementById('e_nama').value = nama;
+  document.getElementById('e_kat').value = kat;
+}
+
+// ── Kalkulasi RRR otomatis ───────────────────────────────────
+// Dihitung dari Entry, SL, TP saat salah satunya berubah.
+function calcRRR() {
+  const e  = parseFloat(document.getElementById('t_entry').value);
+  const sl = parseFloat(document.getElementById('t_sl').value);
+  const tp = parseFloat(document.getElementById('t_tp').value);
+  if (e && sl && tp && e !== sl) {
+    const r = Math.abs(tp - e) / Math.abs(e - sl);
+    const label = '1:' + r.toFixed(2);
+    document.getElementById('rrr_badge').textContent = label;
+    document.getElementById('t_rrr').value = r.toFixed(2);
+  }
+}
+
+// ── Kalkulasi alokasi keuangan otomatis ──────────────────────
+function calcAlokasi() {
+  const p    = parseFloat(document.getElementById('k_profit').value) || 0;
+  const kurs = parseFloat(document.getElementById('k_kurs').value) || 16000;
+  const idr  = p * kurs;
+  const fmt  = v => 'Rp ' + Math.round(v).toLocaleString('id-ID');
+  document.getElementById('k_ops').value   = fmt(idr * 0.4);
+  document.getElementById('k_dd').value    = fmt(idr * 0.3);
+  document.getElementById('k_infra').value = fmt(idr * 0.2);
+  document.getElementById('k_tools').value = fmt(idr * 0.1);
+}
+
+// ── Toast notification ───────────────────────────────────────
+function toast(msg, err = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (err ? ' err' : '');
+  setTimeout(() => el.className = 'toast', 3000);
+}
+
+// ── Notion API helpers ───────────────────────────────────────
+// Fungsi-fungsi kecil untuk membentuk property object sesuai
+// format yang diharapkan Notion API v1.
+const title  = v => ({ title: [{ text: { content: v || '(kosong)' } }] });
+const rt     = v => v ? { rich_text: [{ text: { content: v } }] } : null;
+const num    = v => { const n = parseFloat(v); return isNaN(n) ? null : { number: n }; };
+const sel    = v => v ? { select: { name: v } } : null;
+const date_  = v => v ? { date: { start: v } } : null;
+const chk    = v => ({ checkbox: !!v });
+const urlp   = v => v ? { url: v } : null;
+
+// ── Core submit: kirim request ke proxy ─────────────────────
+// Semua submit handler di bawah memanggil fungsi ini.
+// Proxy akan meneruskan request ke Notion API dengan token yang
+// tersimpan aman di environment variable server.
+async function notionCreate(dbId, props) {
+  if (PROXY_URL === 'YOUR_PROXY_URL_HERE') {
+    throw new Error('PROXY_URL belum diisi! Edit file ini dan ganti YOUR_PROXY_URL_HERE dengan URL proxy kamu.');
+  }
+
+  // Hapus property yang null agar tidak dikirim ke Notion
+  const cleanProps = Object.fromEntries(
+    Object.entries(props).filter(([, v]) => v !== null)
+  );
+
+  const res = await fetch(PROXY_URL + '/pages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      parent: { database_id: dbId },
+      properties: cleanProps,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Unknown error' }));
+    throw new Error(err.message || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+// ── Helper: disable/enable submit button ─────────────────────
+function setBtn(panelId, loading) {
+  const btn = document.querySelector(`#panel-${panelId} .btn-submit`);
+  btn.disabled = loading;
+  const labels = {
+    trading: 'Simpan ke Trading Journal →',
+    keuangan: 'Simpan ke Keuangan →',
+    lahan: 'Simpan ke Lahan & Pertanian →',
+    energi: 'Simpan ke Energi & Infrastruktur →',
+    harian: 'Simpan ke Kesehatan & Ritme →',
+    inventaris: 'Simpan ke Inventaris →',
+  };
+  btn.textContent = loading ? 'Menyimpan…' : labels[panelId];
+}
+
+// ── Helper: reset form setelah berhasil simpan ───────────────
+function resetPanel(panelId) {
+  document.querySelectorAll(`#panel-${panelId} input:not([readonly]), #panel-${panelId} textarea, #panel-${panelId} select`)
+    .forEach(el => {
+      if (el.type === 'range') { el.value = 7; }
+      else if (el.id !== 'k_kurs') { el.value = ''; }
+    });
+  document.querySelectorAll(`#panel-${panelId} .seg-btn.sel`).forEach(el => el.classList.remove('sel'));
+}
+
+// ══════════════════════════════════════════════════════════════
+//  SUBMIT HANDLERS — satu per panel
+// ══════════════════════════════════════════════════════════════
+
+async function submitTrading() {
+  const pair = S.t.pair || document.getElementById('t_pair_custom').value;
+  if (!pair)    return toast('Pilih atau ketik pair dulu!', true);
+  if (!S.t.hasil) return toast('Pilih hasil trade (Win/Loss/BE)!', true);
+
+  setBtn('trading', true);
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    await notionCreate(DB.trading, {
+      'Nama Trade':          title(`${pair} — ${today}`),
+      'Pair / Instrumen':    rt(pair),
+      'Tanggal':             date_(today),
+      'Sesi':                sel(S.t.sesi),
+      'Arah':                sel(S.t.arah),
+      'Entry Price':         num(document.getElementById('t_entry').value),
+      'Stop Loss':           num(document.getElementById('t_sl').value),
+      'Take Profit':         num(document.getElementById('t_tp').value),
+      'Lot Size':            num(document.getElementById('t_lot').value),
+      'Risk (USD)':          num(document.getElementById('t_risk').value),
+      'RRR Aktual':          num(document.getElementById('t_rrr').value),
+      'Hasil':               sel(S.t.hasil),
+      'Profit/Loss (USD)':   num(document.getElementById('t_pnl').value),
+      'Emosi Sebelum Trade': sel(document.getElementById('t_emosi').value),
+      'Setup / Alasan Entry':rt(document.getElementById('t_setup').value),
+      'Lesson Learned':      rt(document.getElementById('t_lesson').value),
+    });
+    toast('✓ Trade disimpan ke Notion!');
+    resetPanel('trading');
+    document.getElementById('rrr_badge').textContent = '—';
+    Object.assign(S.t, { pair:'', sesi:'', arah:'', hasil:'' });
+  } catch (e) { toast('Error: ' + e.message, true); }
+  finally { setBtn('trading', false); }
+}
+
+async function submitKeuangan() {
+  const bulan = document.getElementById('k_bulan').value;
+  if (!bulan) return toast('Isi nama bulan dulu!', true);
+
+  setBtn('keuangan', true);
+  const profit = parseFloat(document.getElementById('k_profit').value) || 0;
+  const kurs   = parseFloat(document.getElementById('k_kurs').value) || 16000;
+  const idr    = profit * kurs;
+  try {
+    await notionCreate(DB.keuangan, {
+      'Bulan':                       title(bulan),
+      'Profit Gross (USD)':          num(profit),
+      'Kurs IDR':                    num(kurs),
+      'Profit IDR':                  num(idr),
+      'Alokasi Operasional (40%)':   num(idr * 0.4),
+      'Alokasi Dana Darurat (30%)':  num(idr * 0.3),
+      'Alokasi Infrastruktur (20%)': num(idr * 0.2),
+      'Alokasi Tools & Skill (10%)': num(idr * 0.1),
+      'Total Pengeluaran Aktual':    num(document.getElementById('k_spend').value),
+      'Status':                      sel(document.getElementById('k_status').value),
+      'Catatan':                     rt(document.getElementById('k_catatan').value),
+      'Tanggal Catat':               date_(new Date().toISOString().slice(0, 10)),
+    });
+    toast('✓ Data keuangan disimpan!');
+    resetPanel('keuangan');
+    document.getElementById('k_kurs').value = '16000';
+  } catch (e) { toast('Error: ' + e.message, true); }
+  finally { setBtn('keuangan', false); }
+}
+
+async function submitLahan() {
+  const nama = document.getElementById('l_nama').value;
+  if (!nama) return toast('Isi nama tanaman dulu!', true);
+
+  setBtn('lahan', true);
+  try {
+    await notionCreate(DB.lahan, {
+      'Nama Tanaman':       title(nama),
+      'Jenis':              sel(document.getElementById('l_jenis').value),
+      'Zona Lahan':         sel(document.getElementById('l_zona').value),
+      'Metode Tanam':       sel(document.getElementById('l_metode').value),
+      'Status':             sel(S.l.status),
+      'Jumlah / Luas (m2)': num(document.getElementById('l_luas').value),
+      'Tanggal Tanam':      date_(document.getElementById('l_tanam').value),
+      'Estimasi Panen':     date_(document.getElementById('l_panen').value),
+      'Hasil Panen (kg)':   num(document.getElementById('l_hasil').value),
+      'Estimasi Nilai (IDR)': num(document.getElementById('l_harga').value),
+      'Catatan Masalah':    rt(document.getElementById('l_catatan').value),
+    });
+    toast('✓ Tanaman berhasil dicatat!');
+    resetPanel('lahan');
+    S.l.status = '';
+  } catch (e) { toast('Error: ' + e.message, true); }
+  finally { setBtn('lahan', false); }
+}
+
+async function submitEnergi() {
+  const nama = document.getElementById('e_nama').value;
+  if (!nama) return toast('Isi nama item infrastruktur dulu!', true);
+
+  setBtn('energi', true);
+  try {
+    await notionCreate(DB.energi, {
+      'Item':                      title(nama),
+      'Kategori':                  sel(document.getElementById('e_kat').value),
+      'Status':                    sel(document.getElementById('e_status').value),
+      'Biaya Bulan Ini (IDR)':     num(document.getElementById('e_biaya').value),
+      'Rata-rata Bulanan (IDR)':   num(document.getElementById('e_avg').value),
+      'Investasi Awal (IDR)':      num(document.getElementById('e_invest').value),
+      'Jadwal Maintenance Berikutnya': date_(document.getElementById('e_maint').value),
+      'Catatan / Tindakan':        rt(document.getElementById('e_catatan').value),
+      'Tanggal Catat':             date_(new Date().toISOString().slice(0, 10)),
+    });
+    toast('✓ Data infrastruktur disimpan!');
+    resetPanel('energi');
+  } catch (e) { toast('Error: ' + e.message, true); }
+  finally { setBtn('energi', false); }
+}
+
+async function submitHarian() {
+  setBtn('harian', true);
+  const tanggal = document.getElementById('h_tanggal').value || new Date().toISOString().slice(0, 10);
+  const namaTanggal = new Date(tanggal + 'T12:00:00').toLocaleDateString('id-ID', {
+    weekday:'long', day:'numeric', month:'long', year:'numeric'
+  });
+  try {
+    await notionCreate(DB.harian, {
+      'Tanggal':                       title(namaTanggal),
+      'Mood Pagi':                     sel(S.h.mood),
+      'Kualitas Tidur':                sel(S.h.tidur),
+      'Jam Tidur':                     num(document.getElementById('h_jam').value),
+      'Energi Level (1-10)':           num(document.getElementById('h_energi').value),
+      'Fokus Level (1-10)':            num(document.getElementById('h_fokus').value),
+      'Olahraga / Aktivitas Fisik':    chk(S.h.ola),
+      'Meditasi / Refleksi':           chk(S.h.med),
+      'Berkebun Hari Ini':             chk(S.h.keb),
+      'Trading Hari Ini':              chk(S.h.trd),
+      'Makan Dari Lahan Sendiri':      chk(S.h.lhn),
+      'Syukur Hari Ini':               rt(document.getElementById('h_syukur').value),
+      'Satu Hal Yang Ingin Diperbaiki':rt(document.getElementById('h_perbaiki').value),
+      'Pengeluaran Hari Ini (IDR)':    num(document.getElementById('h_spend').value),
+    });
+    toast('✓ Jurnal harian disimpan!');
+    resetPanel('harian');
+    document.getElementById('h_tanggal').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('h_energi').value = 7;
+    document.getElementById('h_e_val').textContent = '7';
+    document.getElementById('h_fokus').value = 7;
+    document.getElementById('h_f_val').textContent = '7';
+    Object.assign(S.h, { mood:'', tidur:'', ola:false, med:false, keb:false, trd:false, lhn:false });
+  } catch (e) { toast('Error: ' + e.message, true); }
+  finally { setBtn('harian', false); }
+}
+
+async function submitInventaris() {
+  const nama = document.getElementById('i_nama').value;
+  if (!nama) return toast('Isi nama item dulu!', true);
+
+  setBtn('inventaris', true);
+  const satuan = S.i.satuan || document.getElementById('i_satuan_custom').value;
+  try {
+    await notionCreate(DB.inv, {
+      'Nama Item':          title(nama),
+      'Kategori':           sel(document.getElementById('i_kat').value),
+      'Status Stok':        sel(S.i.stok),
+      'Stok Saat Ini':      num(document.getElementById('i_stok_qty').value),
+      'Satuan':             rt(satuan),
+      'Stok Minimum':       num(document.getElementById('i_min').value),
+      'Harga Satuan (IDR)': num(document.getElementById('i_harga').value),
+      'Dari Lahan Sendiri': chk(S.i.darila),
+      'Catatan':            rt(document.getElementById('i_catatan').value),
+      'Terakhir Dibeli':    date_(new Date().toISOString().slice(0, 10)),
+    });
+    toast('✓ Item inventaris disimpan!');
+    resetPanel('inventaris');
+    S.i.stok = ''; S.i.satuan = ''; S.i.darila = false;
+    document.getElementById('chk_drl_n').classList.add('sel');
+    document.getElementById('chk_drl_y').classList.remove('sel');
+  } catch (e) { toast('Error: ' + e.message, true); }
+  finally { setBtn('inventaris', false); }
+}
+</script>
+</body>
+</html>
